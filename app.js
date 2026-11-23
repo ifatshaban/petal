@@ -2,6 +2,8 @@
   "use strict";
 
   const STORAGE_KEY = "petal.v1";
+  // The app's words are English, so dates are too (whatever language the phone is set to).
+  const LOCALE = "en-GB";
   const DEFAULT_SETTINGS = { sortPlayed: false, hidePlayed: false };
 
   // ---------- dates ----------
@@ -245,7 +247,7 @@
   function render() {
     const now = new Date();
     $("#folioNo").textContent = `No. ${dayOfYear(now)}`;
-    $("#folioDate").textContent = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    $("#folioDate").textContent = now.toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
     const total = state.games.length;
     const done = state.games.filter(playedToday).length;
@@ -581,8 +583,8 @@
   function renderCalendar() {
     const today = dayKey();
     const y = calMonth.getFullYear(), m = calMonth.getMonth();
-    const monthName = calMonth.toLocaleDateString(undefined, { month: "long" });
-    $("#calTitle").textContent = calMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const monthName = calMonth.toLocaleDateString(LOCALE, { month: "long" });
+    $("#calTitle").textContent = calMonth.toLocaleDateString(LOCALE, { month: "long", year: "numeric" });
 
     $("#statCurrent").textContent = currentStreak();
     $("#statBest").textContent = bestStreak();
@@ -595,7 +597,7 @@
     const first = firstDayOfWeek();
     $("#calDow").replaceChildren(...Array.from({ length: 7 }, (_, i) => {
       const d = new Date(2024, 0, 7 + ((first + i) % 7)); // 7 Jan 2024 was a Sunday
-      return h("span", {}, d.toLocaleDateString(undefined, { weekday: "narrow" }));
+      return h("span", {}, d.toLocaleDateString(LOCALE, { weekday: "narrow" }));
     }));
 
     const cells = [];
@@ -616,7 +618,7 @@
         .filter(Boolean).join(" ");
       cells.push(h("button", {
         class: cls, disabled: future,
-        "aria-label": `${keyToDate(key).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}: ${
+        "aria-label": `${keyToDate(key).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" })}: ${
           perfect ? "every game solved" : e ? `${e.ids.length} of ${e.total} solved` : "nothing solved"}`,
         onclick: () => { calSelected = key; renderCalendar(); },
       },
@@ -631,7 +633,7 @@
     const detail = $("#calDetail");
     if (!calSelected) { detail.replaceChildren(); return; }
     const e = state.history[calSelected];
-    const title = keyToDate(calSelected).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    const title = keyToDate(calSelected).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" });
     const names = e ? e.ids.map((id) => state.games.find((g) => g.id === id)?.name).filter(Boolean) : [];
     detail.replaceChildren(
       h("p", { class: "cal-detail-title" }, title),
