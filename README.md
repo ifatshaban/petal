@@ -11,8 +11,8 @@ It's a web app you can install on your home screen, so it works on any phone (iP
 ## What it does
 
 - **Tap a game to open it.** It's also marked as played for today.
-- **Tick or untick** the circle to mark a game by hand.
-- **Daily reset.** Ticks clear at midnight in your time zone. The top of the screen shows today's progress.
+- **Tick or untick** the circle to mark a game by hand. Solved games get crossed off in red.
+- **Daily reset.** Ticks clear at midnight in your time zone. Below the masthead, a row of squares fills in as you go.
 - **Streaks.** Each game shows how many days in a row you've played it.
 - **Real game icons.** Each game shows its website's own icon, fetched automatically, and you can swap in an emoji or an image link.
 - **+ Add any game** with a name, link and group.
@@ -24,6 +24,7 @@ It's a web app you can install on your home screen, so it works on any phone (iP
   - export or import a backup file
   - reset to the default list
 - Works offline and follows your phone's light or dark mode.
+- Set like the puzzle page of a printed paper, in [Newsreader](https://github.com/productiontype/Newsreader) and [IBM Plex Mono](https://github.com/IBM/plex). Both fonts are bundled in `fonts/` under the SIL Open Font License.
 
 Your list is saved on your phone (in the browser's local storage). There's no account and no server.
 To move your list to a new phone, use **Export backup** and then **Import backup**.

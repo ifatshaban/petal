@@ -1,5 +1,5 @@
 // Bump this when you change any app file so phones pick up the new version.
-const CACHE = "petal-v2";
+const CACHE = "petal-v3";
 const ICON_CACHE = "petal-icons-v1";
 const ICON_HOSTS = ["www.google.com", "icons.duckduckgo.com"];
 const ASSETS = [
@@ -14,6 +14,10 @@ const ASSETS = [
   "icons/icon-maskable-512.png",
   "icons/apple-touch-icon.png",
   "icons/favicon.png",
+  "fonts/newsreader-latin-opsz-normal.woff2",
+  "fonts/newsreader-latin-opsz-italic.woff2",
+  "fonts/ibm-plex-mono-latin-400-normal.woff2",
+  "fonts/ibm-plex-mono-latin-500-normal.woff2",
 ];
 
 self.addEventListener("install", (e) => {

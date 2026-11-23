@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Petal</title>
   <meta name="description" content="Your daily games in one place.">
-  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3eee3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#17150f" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -14,30 +14,32 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/favicon.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/newsreader-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
-    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="19" cy="12" r="1.9" fill="currentColor"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.8l4.1 4.2L18.8 6.8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/></symbol>
   </svg>
 
-  <header class="nav">
-    <button id="editBtn" class="text-btn">Edit</button>
-    <div class="nav-right">
-      <button id="addBtn" class="round-btn" aria-label="Add game"><svg><use href="#i-plus"/></svg></button>
-      <button id="menuBtn" class="round-btn" aria-label="Settings"><svg><use href="#i-more"/></svg></button>
-    </div>
+  <nav class="toolbar">
+    <button id="editBtn" class="tool">Edit</button>
+    <span class="grow"></span>
+    <button id="addBtn" class="tool">Add</button>
+    <button id="menuBtn" class="tool">Menu</button>
+  </nav>
+
+  <header class="masthead">
+    <div class="folio"><span id="folioNo"></span><span id="folioDate"></span></div>
+    <h1 class="nameplate">Petal</h1>
+    <p class="tagline">The daily round of puzzles</p>
   </header>
 
-  <section class="hero">
-    <h1 id="dayTitle"></h1>
-    <p id="daySub"></p>
-    <div class="bar" aria-hidden="true"><span id="barFill"></span></div>
+  <section class="round" aria-live="polite">
+    <p id="roundText"></p>
+    <div id="squares" class="squares" aria-hidden="true"></div>
   </section>
 
   <main id="list"></main>
@@ -46,9 +48,9 @@
   <dialog id="gameSheet" class="sheet">
     <form id="gameForm">
       <div class="sheet-nav">
-        <button type="button" class="text-btn" data-close>Cancel</button>
-        <h2 id="gameSheetTitle">New Game</h2>
-        <button type="submit" class="text-btn strong">Save</button>
+        <button type="button" class="tool" data-close>Cancel</button>
+        <h2 id="gameSheetTitle">New game</h2>
+        <button type="submit" class="ink-btn">Save</button>
       </div>
       <div class="sheet-body">
         <div class="icon-preview"><span id="iconPreview"></span></div>
@@ -62,7 +64,7 @@
         </div>
         <p class="footnote">Leave the icon blank to use the website's own icon, or enter an emoji or an image link.</p>
         <div class="cells" id="deleteGameWrap">
-          <button type="button" id="deleteGame" class="cell-btn destructive">Delete Game</button>
+          <button type="button" id="deleteGame" class="cell-btn destructive">Delete this game</button>
         </div>
       </div>
     </form>
@@ -72,16 +74,16 @@
   <dialog id="groupSheet" class="sheet">
     <form id="groupForm">
       <div class="sheet-nav">
-        <button type="button" class="text-btn" data-close>Cancel</button>
-        <h2 id="groupSheetTitle">New Group</h2>
-        <button type="submit" class="text-btn strong">Save</button>
+        <button type="button" class="tool" data-close>Cancel</button>
+        <h2 id="groupSheetTitle">New group</h2>
+        <button type="submit" class="ink-btn">Save</button>
       </div>
       <div class="sheet-body">
         <div class="cells">
           <label class="field"><span>Name</span><input name="name" required maxlength="30" placeholder="Morning games" autocomplete="off"></label>
         </div>
         <div class="cells" id="deleteGroupWrap">
-          <button type="button" id="deleteGroup" class="cell-btn destructive">Delete Group</button>
+          <button type="button" id="deleteGroup" class="cell-btn destructive">Delete this group</button>
         </div>
         <p class="footnote" id="deleteGroupNote"></p>
       </div>
@@ -93,24 +95,24 @@
     <div class="sheet-nav">
       <span></span>
       <h2>Settings</h2>
-      <button type="button" class="text-btn strong" data-close>Done</button>
+      <button type="button" class="ink-btn" data-close>Done</button>
     </div>
     <div class="sheet-body">
       <div class="cells">
-        <label class="cell-row"><span>Move played games down</span><input type="checkbox" class="switch" id="sortPlayed"></label>
-        <label class="cell-row"><span>Hide played games</span><input type="checkbox" class="switch" id="hidePlayed"></label>
+        <label class="cell-row"><span>Move solved games down</span><input type="checkbox" class="switch" id="sortPlayed"></label>
+        <label class="cell-row"><span>Hide solved games</span><input type="checkbox" class="switch" id="hidePlayed"></label>
       </div>
       <div class="cells">
-        <button id="suggestBtn" class="cell-btn chev">Suggested Games<svg><use href="#i-chev"/></svg></button>
-        <button id="newGroupBtn" class="cell-btn chev">New Group<svg><use href="#i-chev"/></svg></button>
+        <button id="suggestBtn" class="cell-btn chev">Suggested games<span aria-hidden="true">→</span></button>
+        <button id="newGroupBtn" class="cell-btn chev">New group<span aria-hidden="true">→</span></button>
       </div>
       <div class="cells">
-        <button id="exportBtn" class="cell-btn">Export Backup</button>
-        <button id="importBtn" class="cell-btn">Import Backup</button>
+        <button id="exportBtn" class="cell-btn">Export backup</button>
+        <button id="importBtn" class="cell-btn">Import backup</button>
         <input type="file" id="importFile" accept="application/json,.json" hidden>
       </div>
       <div class="cells">
-        <button id="resetBtn" class="cell-btn destructive">Reset to Default Games</button>
+        <button id="resetBtn" class="cell-btn destructive">Reset to the default games</button>
       </div>
       <p class="footnote" id="installHint"></p>
     </div>
@@ -120,8 +122,8 @@
   <dialog id="suggestSheet" class="sheet">
     <div class="sheet-nav">
       <span></span>
-      <h2>Suggested Games</h2>
-      <button type="button" class="text-btn strong" data-close>Done</button>
+      <h2>Suggested games</h2>
+      <button type="button" class="ink-btn" data-close>Done</button>
     </div>
     <div class="sheet-body">
       <div class="cells" id="suggestList"></div>

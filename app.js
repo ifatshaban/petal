@@ -146,15 +146,12 @@
     ];
   };
   const resolved = new Map(); // key -> working src, or "" for "use letter"
-  const TINTS = ["#5e7c8a", "#8a6f5e", "#6b7f5a", "#7a6a8c", "#8c6a72", "#5f7f78", "#8a7d55", "#646a85"];
-  const tintFor = (name) => TINTS[[...name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % TINTS.length];
 
   function iconEl(game) {
     const wrap = h("span", { class: "ico", "aria-hidden": "true" });
     const custom = (game.icon || "").trim();
     const letter = () => {
       wrap.className = "ico letter";
-      wrap.style.background = tintFor(game.name || "?");
       wrap.replaceChildren((game.name || "?").trim().charAt(0).toUpperCase());
     };
     if (custom && !isLink(custom)) { wrap.className = "ico emoji"; wrap.textContent = custom; return wrap; }
@@ -185,29 +182,40 @@
   }
 
   // ---------- render ----------
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const dayOfYear = (d) => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(d.getFullYear(), 0, 0)) / 864e5);
+
   function render() {
     const now = new Date();
-    $("#dayTitle").textContent = now.toLocaleDateString(undefined, { weekday: "long" });
+    $("#folioNo").textContent = `No. ${dayOfYear(now)}`;
+    $("#folioDate").textContent = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
     const total = state.games.length;
     const done = state.games.filter(playedToday).length;
-    const date = now.toLocaleDateString(undefined, { month: "long", day: "numeric" });
-    $("#daySub").textContent = total ? `${date} · ${done === total ? "All done" : `${done} of ${total} played`}` : date;
-    $("#barFill").style.transform = `scaleX(${total ? done / total : 0})`;
+    const round = $("#roundText");
+    round.replaceChildren();
+    if (total) {
+      round.append(h("em", {}, "Today’s round"), " — ",
+        done === total ? `all ${total} solved.` : `${done} of ${total} solved`);
+    }
+    const ordered = state.groups.flatMap((grp) => gamesIn(grp.id));
+    $("#squares").replaceChildren(...ordered.map((g) => h("i", { class: playedToday(g) ? "on" : null })));
 
     document.body.classList.toggle("editing", editing);
     $("#editBtn").textContent = editing ? "Done" : "Edit";
-    $("#editBtn").classList.toggle("strong", editing);
+    $("#editBtn").classList.toggle("active", editing);
 
     const list = $("#list");
     list.replaceChildren();
 
     if (!state.groups.length && !editing) {
       list.append(h("div", { class: "empty" },
-        h("p", { class: "empty-title" }, "No games yet"),
-        h("p", {}, "Tap + to add one, or find some under Settings → Suggested Games.")));
+        h("p", {}, "Nothing on today’s page yet."),
+        h("p", { class: "small" }, "Tap Add to put a game here, or browse the suggestions under Menu.")));
       return;
     }
 
+    let n = 0;
     state.groups.forEach((grp, gi) => {
       const all = gamesIn(grp.id);
       if (!editing && !all.length) return;
@@ -215,11 +223,12 @@
       let shown = all;
       if (!editing && state.settings.hidePlayed) shown = shown.filter((g) => !playedToday(g));
       if (!editing && state.settings.sortPlayed) shown = [...shown].sort((a, b) => playedToday(a) - playedToday(b));
+      const numbers = new Map(all.map((g) => [g, ++n]));
 
       const head = editing
         ? h("div", { class: "group-head" },
             h("button", { class: "group-name editable", onclick: () => openGroupSheet(grp) }, grp.name,
-              h("span", { class: "rename" }, "Rename")),
+              h("span", { class: "rename" }, "rename")),
             h("div", { class: "move" },
               moveBtn("i-up", `Move ${grp.name} up`, gi === 0, () => moveGroup(gi, -1)),
               moveBtn("i-down", `Move ${grp.name} down`, gi === state.groups.length - 1, () => moveGroup(gi, 1))))
@@ -227,39 +236,39 @@
             h("h2", { class: "group-name" }, grp.name),
             h("span", { class: "group-count" }, `${all.filter(playedToday).length}/${all.length}`));
 
-      const cells = h("div", { class: "cells" });
-      shown.forEach((g) => cells.append(row(g, all)));
+      const rows = h("div", { class: "rows" });
+      shown.forEach((g) => rows.append(row(g, all, numbers.get(g))));
       if (editing) {
-        cells.append(h("button", { class: "cell-btn add-row", onclick: () => openGameSheet(null, grp.id) },
-          h("span", { class: "add-ico" }, svg("i-plus")), "Add Game"));
+        rows.append(h("button", { class: "add-row", onclick: () => openGameSheet(null, grp.id) },
+          h("span", { class: "num" }, "+"), h("em", {}, `Add a game to ${grp.name}`)));
       } else if (!shown.length) {
-        cells.append(h("div", { class: "cell-note" }, "All played"));
+        rows.append(h("p", { class: "row-note" }, h("em", {}, "All solved.")));
       }
-      list.append(h("section", { class: "group" }, head, cells));
+      list.append(h("section", { class: "group" }, head, rows));
     });
 
     if (editing) {
-      list.append(h("div", { class: "cells new-group" },
-        h("button", { class: "cell-btn add-row", onclick: () => openGroupSheet(null) },
-          h("span", { class: "add-ico" }, svg("i-plus")), "New Group")));
+      list.append(h("button", { class: "add-row new-group", onclick: () => openGroupSheet(null) },
+        h("span", { class: "num" }, "+"), h("em", {}, "Start a new group")));
     }
   }
 
   const moveBtn = (icon, label, disabled, fn) =>
     h("button", { class: "move-btn", "aria-label": label, disabled, onclick: fn }, svg(icon));
 
-  function row(g, groupGames) {
+  function row(g, groupGames, number) {
     const played = playedToday(g);
     const streak = liveStreak(g);
-    const detail = streak > 1 ? `${streak}-day streak` : played ? "Played today" : hostOf(g.url);
+    const detail = streak > 1 ? `${streak} days running` : played ? "Solved today" : hostOf(g.url);
     const text = h("span", { class: "row-text" },
       h("span", { class: "row-title" }, g.name),
       h("span", { class: "row-detail" }, detail));
+    const num = h("span", { class: "num" }, pad2(number));
 
     if (editing) {
       const idx = groupGames.indexOf(g);
       return h("div", { class: "row" },
-        h("button", { class: "row-main", onclick: () => openGameSheet(g), "aria-label": `Edit ${g.name}` }, iconEl(g), text),
+        h("button", { class: "row-main", onclick: () => openGameSheet(g), "aria-label": `Edit ${g.name}` }, num, iconEl(g), text),
         h("div", { class: "move" },
           moveBtn("i-up", `Move ${g.name} up`, idx === 0, () => moveGame(g, groupGames, -1)),
           moveBtn("i-down", `Move ${g.name} down`, idx === groupGames.length - 1, () => moveGame(g, groupGames, 1))));
@@ -269,10 +278,10 @@
       h("a", {
         class: "row-main", href: g.url, target: "_blank", rel: "noopener noreferrer",
         onclick: () => { if (!playedToday(g)) { setPlayed(g, true); setTimeout(render, 400); } },
-      }, iconEl(g), text),
+      }, num, iconEl(g), text),
       h("button", {
         class: "check", "aria-pressed": String(played),
-        "aria-label": played ? `Mark ${g.name} as not played` : `Mark ${g.name} as played`,
+        "aria-label": played ? `Mark ${g.name} as not solved` : `Mark ${g.name} as solved`,
         onclick: () => { setPlayed(g, !played); render(); },
       }, svg("i-check")));
   }
@@ -308,7 +317,7 @@
   function fillGroupSelect(selectedId) {
     groupSelect.replaceChildren(
       ...state.groups.map((g) => h("option", { value: g.id }, g.name)),
-      h("option", { value: "__new" }, "New Group…"));
+      h("option", { value: "__new" }, "New group…"));
     if (!state.groups.length) {
       // a game needs a group; make "Other" on the fly
       const grp = { id: uid(), name: "Other" };
@@ -331,7 +340,7 @@
 
   function openGameSheet(g, groupId) {
     editingGameId = g ? g.id : null;
-    $("#gameSheetTitle").textContent = g ? "Edit Game" : "New Game";
+    $("#gameSheetTitle").textContent = g ? "Edit game" : "New game";
     $("#deleteGameWrap").hidden = !g;
     gameForm.name.value = g ? g.name : "";
     gameForm.url.value = g ? g.url : "";
@@ -387,7 +396,7 @@
   function openGroupSheet(grp, onCreated) {
     editingGroupId = grp ? grp.id : null;
     onGroupCreated = onCreated || null;
-    $("#groupSheetTitle").textContent = grp ? "Rename Group" : "New Group";
+    $("#groupSheetTitle").textContent = grp ? "Rename group" : "New group";
     groupForm.name.value = grp ? grp.name : "";
     $("#deleteGroupWrap").hidden = !grp;
     const n = grp ? gamesIn(grp.id).length : 0;
@@ -437,7 +446,7 @@
 
   function installHint() {
     const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    if (standalone) return "Your games and streaks are saved on this phone. Export a backup now and then to keep them safe.";
+    if (standalone) return "Your games and streaks live on this phone only. Export a backup now and then to keep them safe.";
     if (/iphone|ipad|ipod/i.test(navigator.userAgent))
       return "To install: tap Share in Safari, then Add to Home Screen.";
     if (/android/i.test(navigator.userAgent))
@@ -474,12 +483,12 @@
     const have = new Set(state.games.map((g) => key(g.url)));
     const items = [...window.DEFAULT_GAMES, ...window.SUGGESTED_GAMES].filter((s) => !have.has(key(s.url)));
     const list = $("#suggestList");
-    if (!items.length) { list.replaceChildren(h("div", { class: "cell-note" }, "You have all of them.")); return; }
+    if (!items.length) { list.replaceChildren(h("p", { class: "row-note" }, h("em", {}, "You have all of them."))); return; }
     list.replaceChildren(...items.map((s) =>
       h("div", { class: "row" },
         h("div", { class: "row-main" }, iconEl(s),
           h("span", { class: "row-text" }, h("span", { class: "row-title" }, s.name), h("span", { class: "row-detail" }, s.group))),
-        h("button", { class: "pill-btn", onclick: () => {
+        h("button", { class: "tool add-btn", onclick: () => {
             let grp = state.groups.find((g) => g.name === s.group);
             if (!grp) { grp = { id: uid(), name: s.group }; state.groups.push(grp); }
             state.games.push(newGame({ name: s.name, url: s.url, groupId: grp.id }));
