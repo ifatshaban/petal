@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Petal</title>
+  <meta name="description" content="All your daily games in one place.">
+  <meta name="theme-color" content="#fff7f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#17141a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Petal">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/favicon.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="title-row">
+      <div>
+        <h1>Petal</h1>
+        <p id="today" class="muted"></p>
+      </div>
+      <div class="actions">
+        <button id="editBtn" class="pill" aria-pressed="false">Edit</button>
+        <button id="menuBtn" class="icon-btn" aria-label="Settings">⋯</button>
+      </div>
+    </div>
+    <div class="progress" aria-live="polite">
+      <div class="bar"><span id="barFill"></span></div>
+      <span id="progressText" class="muted"></span>
+    </div>
+  </header>
+
+  <main id="list"></main>
+
+  <button id="addBtn" class="fab" aria-label="Add a game">＋</button>
+
+  <!-- Add / edit game -->
+  <dialog id="gameDialog">
+    <form id="gameForm" method="dialog">
+      <h2 id="gameDialogTitle">Add a game</h2>
+      <label>Name
+        <input name="name" required maxlength="40" placeholder="Wordle" autocomplete="off">
+      </label>
+      <label>Link
+        <input name="url" required type="url" inputmode="url" placeholder="https://…" autocomplete="off">
+      </label>
+      <div class="row">
+        <label class="emoji-field">Icon
+          <input name="emoji" maxlength="4" placeholder="🎮" autocomplete="off">
+        </label>
+        <label class="grow">Group
+          <input name="group" list="groupList" maxlength="30" placeholder="Other" autocomplete="off">
+          <datalist id="groupList"></datalist>
+        </label>
+      </div>
+      <fieldset class="colors" aria-label="Colour">
+        <legend>Colour</legend>
+        <div id="colorChoices"></div>
+      </fieldset>
+      <div class="dialog-actions">
+        <button type="button" id="deleteGame" class="danger">Delete</button>
+        <span class="grow"></span>
+        <button type="button" value="cancel" class="ghost" data-close>Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="menuDialog">
+    <div class="menu">
+      <h2>Settings</h2>
+      <label class="switch-row">
+        <span>Move played games to the bottom</span>
+        <input type="checkbox" id="sortPlayed">
+      </label>
+      <label class="switch-row">
+        <span>Hide games I've played today</span>
+        <input type="checkbox" id="hidePlayed">
+      </label>
+      <hr>
+      <button id="suggestBtn" class="menu-item">✨ Add more popular games…</button>
+      <button id="exportBtn" class="menu-item">⬇️ Export backup</button>
+      <button id="importBtn" class="menu-item">⬆️ Import backup</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <button id="resetBtn" class="menu-item danger-text">↺ Reset to default games</button>
+      <hr>
+      <p class="muted small" id="installHint"></p>
+      <div class="dialog-actions"><span class="grow"></span><button class="primary" data-close>Done</button></div>
+    </div>
+  </dialog>
+
+  <!-- Suggestions -->
+  <dialog id="suggestDialog">
+    <div class="menu">
+      <h2>Popular daily games</h2>
+      <p class="muted small">Tap to add. Games you already have are hidden.</p>
+      <div id="suggestList" class="suggest-list"></div>
+      <div class="dialog-actions"><span class="grow"></span><button class="primary" data-close>Done</button></div>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="games.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
