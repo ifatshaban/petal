@@ -1,12 +1,12 @@
 {
   "name": "Petal — Daily Games",
   "short_name": "Petal",
-  "description": "All your daily games in one place.",
+  "description": "Your daily games in one place.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#fff7f3",
-  "theme_color": "#fff7f3",
+  "background_color": "#f2f2f7",
+  "theme_color": "#f2f2f7",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

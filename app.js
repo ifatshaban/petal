@@ -2,8 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "petal.v1";
-  const COLORS = ["#6aaa64", "#f7da21", "#fc716b", "#b07fd8", "#4f85e5", "#3c8dd9",
-                  "#4fa98a", "#e9a23b", "#e46f3c", "#ef7f8f", "#8a8a8a", "#222222"];
+  const DEFAULT_SETTINGS = { sortPlayed: false, hidePlayed: false };
 
   // ---------- dates ----------
   const dayKey = (d = new Date()) => {
@@ -13,39 +12,72 @@
   const yesterdayKey = () => { const d = new Date(); d.setDate(d.getDate() - 1); return dayKey(d); };
 
   // ---------- state ----------
+  // { version: 2, groups: [{id, name}], games: [{id, name, url, groupId, icon, lastPlayed, streak, undo}], settings }
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-  const fresh = (g) => ({ id: uid(), name: g.name, url: g.url, emoji: g.emoji || "", group: g.group || "Other",
-                          color: g.color || COLORS[0], lastPlayed: null, streak: 0, undo: null });
+
+  function fromCatalogue(list) {
+    const groups = [];
+    const byName = new Map();
+    const games = list.map((g) => {
+      let grp = byName.get(g.group);
+      if (!grp) { grp = { id: uid(), name: g.group }; groups.push(grp); byName.set(g.group, grp); }
+      return newGame({ name: g.name, url: g.url, groupId: grp.id });
+    });
+    return { groups, games };
+  }
+
+  const newGame = (g) => ({ id: uid(), name: g.name, url: g.url, groupId: g.groupId, icon: g.icon || "",
+                            lastPlayed: null, streak: 0, undo: null });
 
   function defaultState() {
-    return { version: 1, games: window.DEFAULT_GAMES.map(fresh), settings: { sortPlayed: false, hidePlayed: false } };
+    return { version: 2, ...fromCatalogue(window.DEFAULT_GAMES), settings: { ...DEFAULT_SETTINGS } };
+  }
+
+  // Accepts current and older saved data (and backup files) and normalises it.
+  function migrate(s) {
+    if (!s || !Array.isArray(s.games)) return null;
+    const groups = Array.isArray(s.groups)
+      ? s.groups.filter((g) => g && g.id && g.name).map((g) => ({ id: String(g.id), name: String(g.name) }))
+      : [];
+    const byName = new Map(groups.map((g) => [g.name, g]));
+    const games = [];
+    for (const g of s.games) {
+      if (!g || !g.name || !g.url) continue;
+      let groupId = g.groupId;
+      if (!groups.some((x) => x.id === groupId)) {
+        const name = g.group || "Other";
+        let grp = byName.get(name);
+        if (!grp) { grp = { id: uid(), name }; groups.push(grp); byName.set(name, grp); }
+        groupId = grp.id;
+      }
+      games.push({
+        id: g.id || uid(), name: String(g.name), url: String(g.url), groupId,
+        icon: s.version >= 2 ? String(g.icon || "") : "",
+        lastPlayed: g.lastPlayed || null, streak: Number(g.streak) || 0, undo: g.undo || null,
+      });
+    }
+    return { version: 2, groups, games, settings: { ...DEFAULT_SETTINGS, ...s.settings } };
   }
 
   function load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const s = JSON.parse(raw);
-        if (s && Array.isArray(s.games)) {
-          s.settings = Object.assign({ sortPlayed: false, hidePlayed: false }, s.settings);
-          return s;
-        }
-      }
-    } catch (e) { /* fall through to defaults */ }
+      const s = migrate(JSON.parse(localStorage.getItem(STORAGE_KEY)));
+      if (s) return s;
+    } catch (e) { /* fall through */ }
     return defaultState();
   }
 
   let state = load();
   let editing = false;
-  let editingId = null;
 
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-    catch (e) { toast("Couldn't save — storage is full or blocked"); }
+    catch (e) { toast("Couldn't save. Storage may be full."); }
   }
 
+  const gamesIn = (groupId) => state.games.filter((g) => g.groupId === groupId);
+  const groupById = (id) => state.groups.find((g) => g.id === id);
   const playedToday = (g) => g.lastPlayed === dayKey();
-  // A streak only counts if the chain reaches today or yesterday.
   const liveStreak = (g) => (g.lastPlayed === dayKey() || g.lastPlayed === yesterdayKey()) ? g.streak : 0;
 
   function setPlayed(g, played) {
@@ -70,11 +102,17 @@
       if (v == null || v === false) continue;
       if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
       else if (k === "class") el.className = v;
-      else if (k === "style") el.style.cssText = v;
       else el.setAttribute(k, v === true ? "" : v);
     }
     for (const kid of kids.flat()) if (kid != null) el.append(kid);
     return el;
+  };
+  const svg = (id) => {
+    const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const u = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    u.setAttribute("href", `#${id}`);
+    s.append(u);
+    return s;
   };
 
   let toastTimer;
@@ -83,200 +121,328 @@
     t.textContent = msg;
     t.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2000);
   }
 
-  const initials = (name) => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  function normaliseUrl(v) {
+    v = (v || "").trim();
+    if (v && !/^[a-z][a-z0-9+.-]*:/i.test(v)) v = "https://" + v;
+    return v;
+  }
+  function hostOf(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
+  }
+
+  // ---------- icons ----------
+  // The website's own icon via a favicon service, then a second service,
+  // then a lettered tile. Results are remembered so re-renders don't flicker.
+  const isLink = (s) => /^(https?:)?\/\//i.test(s) || /^data:image\//i.test(s);
+  const iconSources = (url) => {
+    const host = hostOf(url);
+    if (!host) return [];
+    return [
+      `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`,
+      `https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`,
+    ];
+  };
+  const resolved = new Map(); // key -> working src, or "" for "use letter"
+  const TINTS = ["#5e7c8a", "#8a6f5e", "#6b7f5a", "#7a6a8c", "#8c6a72", "#5f7f78", "#8a7d55", "#646a85"];
+  const tintFor = (name) => TINTS[[...name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % TINTS.length];
+
+  function iconEl(game) {
+    const wrap = h("span", { class: "ico", "aria-hidden": "true" });
+    const custom = (game.icon || "").trim();
+    const letter = () => {
+      wrap.className = "ico letter";
+      wrap.style.background = tintFor(game.name || "?");
+      wrap.replaceChildren((game.name || "?").trim().charAt(0).toUpperCase());
+    };
+    if (custom && !isLink(custom)) { wrap.className = "ico emoji"; wrap.textContent = custom; return wrap; }
+
+    const sources = custom ? [custom] : iconSources(game.url);
+    const key = custom || hostOf(game.url);
+    if (resolved.has(key)) {
+      const src = resolved.get(key);
+      if (src) wrap.append(h("img", { src, alt: "", referrerpolicy: "no-referrer" })); else letter();
+      return wrap;
+    }
+    let i = 0;
+    const tryNext = () => {
+      if (i >= sources.length) { resolved.set(key, ""); letter(); return; }
+      const src = sources[i++];
+      const img = h("img", { alt: "", referrerpolicy: "no-referrer" });
+      img.onload = () => {
+        // The Google service answers unknown sites with a tiny generic globe.
+        if (!custom && src.includes("google.com") && img.naturalWidth <= 16) { img.remove(); tryNext(); return; }
+        resolved.set(key, src);
+      };
+      img.onerror = () => { img.remove(); tryNext(); };
+      img.src = src;
+      wrap.replaceChildren(img);
+    };
+    if (!sources.length) letter(); else tryNext();
+    return wrap;
+  }
 
   // ---------- render ----------
-  function groupsInOrder() {
-    const order = [];
-    const map = new Map();
-    for (const g of state.games) {
-      if (!map.has(g.group)) { map.set(g.group, []); order.push(g.group); }
-      map.get(g.group).push(g);
-    }
-    return order.map((name) => [name, map.get(name)]);
-  }
-
   function render() {
-    const today = new Date();
-    $("#today").textContent = today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-
+    const now = new Date();
+    $("#dayTitle").textContent = now.toLocaleDateString(undefined, { weekday: "long" });
     const total = state.games.length;
     const done = state.games.filter(playedToday).length;
-    $("#barFill").style.width = total ? `${(done / total) * 100}%` : "0%";
-    $("#progressText").textContent = total
-      ? (done === total ? `All ${total} done today 🎉` : `${done} of ${total} played today`)
-      : "";
+    const date = now.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+    $("#daySub").textContent = total ? `${date} · ${done === total ? "All done" : `${done} of ${total} played`}` : date;
+    $("#barFill").style.transform = `scaleX(${total ? done / total : 0})`;
 
     document.body.classList.toggle("editing", editing);
     $("#editBtn").textContent = editing ? "Done" : "Edit";
-    $("#editBtn").setAttribute("aria-pressed", String(editing));
+    $("#editBtn").classList.toggle("strong", editing);
 
     const list = $("#list");
     list.replaceChildren();
 
-    if (!total) {
+    if (!state.groups.length && !editing) {
       list.append(h("div", { class: "empty" },
-        h("p", {}, "No games yet."),
-        h("p", { class: "muted" }, "Tap ＋ to add one, or pick from popular games in Settings.")));
+        h("p", { class: "empty-title" }, "No games yet"),
+        h("p", {}, "Tap + to add one, or find some under Settings → Suggested Games.")));
       return;
     }
 
-    for (const [groupName, games] of groupsInOrder()) {
-      let shown = games.slice();
-      if (!editing && state.settings.hidePlayed) shown = shown.filter((g) => !playedToday(g));
-      if (!editing && state.settings.sortPlayed) {
-        shown.sort((a, b) => Number(playedToday(a)) - Number(playedToday(b)));
-      }
-      const doneInGroup = games.filter(playedToday).length;
-      const section = h("section", { class: "group" },
-        h("h2", { class: "group-title" },
-          h("span", {}, groupName),
-          h("span", { class: "muted small" }, `${doneInGroup}/${games.length}`)));
+    state.groups.forEach((grp, gi) => {
+      const all = gamesIn(grp.id);
+      if (!editing && !all.length) return;
 
-      if (!shown.length) {
-        section.append(h("p", { class: "muted small group-done" }, "All played ✓"));
-      } else {
-        const grid = h("div", { class: "grid" });
-        shown.forEach((g) => grid.append(tile(g, games)));
-        section.append(grid);
+      let shown = all;
+      if (!editing && state.settings.hidePlayed) shown = shown.filter((g) => !playedToday(g));
+      if (!editing && state.settings.sortPlayed) shown = [...shown].sort((a, b) => playedToday(a) - playedToday(b));
+
+      const head = editing
+        ? h("div", { class: "group-head" },
+            h("button", { class: "group-name editable", onclick: () => openGroupSheet(grp) }, grp.name,
+              h("span", { class: "rename" }, "Rename")),
+            h("div", { class: "move" },
+              moveBtn("i-up", `Move ${grp.name} up`, gi === 0, () => moveGroup(gi, -1)),
+              moveBtn("i-down", `Move ${grp.name} down`, gi === state.groups.length - 1, () => moveGroup(gi, 1))))
+        : h("div", { class: "group-head" },
+            h("h2", { class: "group-name" }, grp.name),
+            h("span", { class: "group-count" }, `${all.filter(playedToday).length}/${all.length}`));
+
+      const cells = h("div", { class: "cells" });
+      shown.forEach((g) => cells.append(row(g, all)));
+      if (editing) {
+        cells.append(h("button", { class: "cell-btn add-row", onclick: () => openGameSheet(null, grp.id) },
+          h("span", { class: "add-ico" }, svg("i-plus")), "Add Game"));
+      } else if (!shown.length) {
+        cells.append(h("div", { class: "cell-note" }, "All played"));
       }
-      list.append(section);
+      list.append(h("section", { class: "group" }, head, cells));
+    });
+
+    if (editing) {
+      list.append(h("div", { class: "cells new-group" },
+        h("button", { class: "cell-btn add-row", onclick: () => openGroupSheet(null) },
+          h("span", { class: "add-ico" }, svg("i-plus")), "New Group")));
     }
   }
 
-  function tile(g, groupGames) {
+  const moveBtn = (icon, label, disabled, fn) =>
+    h("button", { class: "move-btn", "aria-label": label, disabled, onclick: fn }, svg(icon));
+
+  function row(g, groupGames) {
     const played = playedToday(g);
     const streak = liveStreak(g);
-    const badge = h("span", { class: "badge", style: `--c:${g.color}` }, g.emoji || initials(g.name));
-    const meta = h("span", { class: "meta" },
-      h("span", { class: "name" }, g.name),
-      h("span", { class: "sub" }, streak > 1 ? `🔥 ${streak} day streak` : played ? "Played today" : hostOf(g.url)));
+    const detail = streak > 1 ? `${streak}-day streak` : played ? "Played today" : hostOf(g.url);
+    const text = h("span", { class: "row-text" },
+      h("span", { class: "row-title" }, g.name),
+      h("span", { class: "row-detail" }, detail));
 
     if (editing) {
       const idx = groupGames.indexOf(g);
-      return h("div", { class: "tile edit", style: `--c:${g.color}` },
-        h("button", { class: "tile-main", onclick: () => openGameDialog(g), "aria-label": `Edit ${g.name}` }, badge, meta),
+      return h("div", { class: "row" },
+        h("button", { class: "row-main", onclick: () => openGameSheet(g), "aria-label": `Edit ${g.name}` }, iconEl(g), text),
         h("div", { class: "move" },
-          h("button", { class: "icon-btn sm", "aria-label": "Move up", disabled: idx === 0, onclick: () => move(g, groupGames, -1) }, "↑"),
-          h("button", { class: "icon-btn sm", "aria-label": "Move down", disabled: idx === groupGames.length - 1, onclick: () => move(g, groupGames, 1) }, "↓")));
+          moveBtn("i-up", `Move ${g.name} up`, idx === 0, () => moveGame(g, groupGames, -1)),
+          moveBtn("i-down", `Move ${g.name} down`, idx === groupGames.length - 1, () => moveGame(g, groupGames, 1))));
     }
 
-    return h("div", { class: `tile${played ? " played" : ""}`, style: `--c:${g.color}` },
+    return h("div", { class: `row${played ? " played" : ""}` },
       h("a", {
-        class: "tile-main", href: g.url, target: "_blank", rel: "noopener noreferrer",
-        onclick: () => { if (!playedToday(g)) { setPlayed(g, true); setTimeout(render, 300); } },
-      }, badge, meta),
+        class: "row-main", href: g.url, target: "_blank", rel: "noopener noreferrer",
+        onclick: () => { if (!playedToday(g)) { setPlayed(g, true); setTimeout(render, 400); } },
+      }, iconEl(g), text),
       h("button", {
         class: "check", "aria-pressed": String(played),
         "aria-label": played ? `Mark ${g.name} as not played` : `Mark ${g.name} as played`,
         onclick: () => { setPlayed(g, !played); render(); },
-      }, played ? "✓" : ""));
+      }, svg("i-check")));
   }
 
-  function hostOf(url) {
-    try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
-  }
-
-  function move(g, groupGames, dir) {
-    const idx = groupGames.indexOf(g);
-    const other = groupGames[idx + dir];
+  function moveGame(g, groupGames, dir) {
+    const other = groupGames[groupGames.indexOf(g) + dir];
     if (!other) return;
     const a = state.games.indexOf(g), b = state.games.indexOf(other);
     [state.games[a], state.games[b]] = [state.games[b], state.games[a]];
     save(); render();
   }
+  function moveGroup(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= state.groups.length) return;
+    [state.groups[i], state.groups[j]] = [state.groups[j], state.groups[i]];
+    save(); render();
+  }
 
-  // ---------- add / edit dialog ----------
-  const gameDialog = $("#gameDialog");
-  const form = $("#gameForm");
+  // ---------- sheets ----------
+  function openSheet(d) { d.showModal(); }
+  document.querySelectorAll("[data-close]").forEach((b) =>
+    b.addEventListener("click", () => b.closest("dialog").close()));
+  document.querySelectorAll("dialog").forEach((d) =>
+    d.addEventListener("click", (e) => { if (e.target === d) d.close(); }));
 
-  function buildColorChoices(selected) {
-    const wrap = $("#colorChoices");
-    wrap.replaceChildren(...COLORS.map((c) =>
-      h("label", { class: "swatch", style: `--c:${c}` },
-        h("input", { type: "radio", name: "color", value: c, checked: c === selected, "aria-label": c }))));
-    if (!COLORS.includes(selected)) {
-      wrap.append(h("label", { class: "swatch", style: `--c:${selected}` },
-        h("input", { type: "radio", name: "color", value: selected, checked: true, "aria-label": selected })));
+  // ----- game sheet -----
+  const gameSheet = $("#gameSheet");
+  const gameForm = $("#gameForm");
+  const groupSelect = $("#groupSelect");
+  let editingGameId = null;
+  let lastGroupChoice = null;
+
+  function fillGroupSelect(selectedId) {
+    groupSelect.replaceChildren(
+      ...state.groups.map((g) => h("option", { value: g.id }, g.name)),
+      h("option", { value: "__new" }, "New Group…"));
+    if (!state.groups.length) {
+      // a game needs a group; make "Other" on the fly
+      const grp = { id: uid(), name: "Other" };
+      state.groups.push(grp); save();
+      return fillGroupSelect(grp.id);
     }
+    groupSelect.value = selectedId && groupById(selectedId) ? selectedId : state.groups[0].id;
+    lastGroupChoice = groupSelect.value;
   }
 
-  function openGameDialog(g) {
-    editingId = g ? g.id : null;
-    $("#gameDialogTitle").textContent = g ? "Edit game" : "Add a game";
-    $("#deleteGame").hidden = !g;
-    form.name.value = g ? g.name : "";
-    form.url.value = g ? g.url : "";
-    form.emoji.value = g ? g.emoji : "";
-    form.group.value = g ? g.group : (state.games.at(-1)?.group || "");
-    $("#groupList").replaceChildren(...groupsInOrder().map(([n]) => h("option", { value: n })));
-    buildColorChoices(g ? g.color : COLORS[Math.floor(Math.random() * COLORS.length)]);
-    gameDialog.showModal();
-    if (!g) form.name.focus();
+  function updatePreview() {
+    const fake = { name: gameForm.name.value || "?", url: normaliseUrl(gameForm.url.value), icon: gameForm.icon.value };
+    $("#iconPreview").replaceChildren(iconEl(fake));
+  }
+  let previewTimer;
+  ["input", "change"].forEach((ev) => gameForm.addEventListener(ev, (e) => {
+    if (e.target === groupSelect) return;
+    clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 350);
+  }));
+
+  function openGameSheet(g, groupId) {
+    editingGameId = g ? g.id : null;
+    $("#gameSheetTitle").textContent = g ? "Edit Game" : "New Game";
+    $("#deleteGameWrap").hidden = !g;
+    gameForm.name.value = g ? g.name : "";
+    gameForm.url.value = g ? g.url : "";
+    gameForm.icon.value = g ? g.icon : "";
+    fillGroupSelect(g ? g.groupId : groupId);
+    updatePreview();
+    openSheet(gameSheet);
+    if (!g) setTimeout(() => gameForm.name.focus(), 50);
   }
 
-  form.url.addEventListener("blur", () => {
-    const v = form.url.value.trim();
-    if (v && !/^[a-z][a-z0-9+.-]*:/i.test(v)) form.url.value = "https://" + v;
+  groupSelect.addEventListener("change", () => {
+    if (groupSelect.value !== "__new") { lastGroupChoice = groupSelect.value; return; }
+    groupSelect.value = lastGroupChoice;
+    openGroupSheet(null, (grp) => { fillGroupSelect(grp.id); });
   });
 
-  form.addEventListener("submit", (e) => {
+  gameForm.url.addEventListener("blur", () => { gameForm.url.value = normaliseUrl(gameForm.url.value); });
+
+  gameForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    let url = form.url.value.trim();
-    if (url && !/^[a-z][a-z0-9+.-]*:/i.test(url)) url = "https://" + url;
-    try { const u = new URL(url); if (!/^https?:$/.test(u.protocol)) throw 0; }
-    catch { toast("Please enter a valid web link"); form.url.focus(); return; }
+    const url = normaliseUrl(gameForm.url.value);
+    try { if (!/^https?:$/.test(new URL(url).protocol)) throw 0; }
+    catch { toast("Enter a valid web link"); gameForm.url.focus(); return; }
+    const name = gameForm.name.value.trim();
+    if (!name) { gameForm.name.focus(); return; }
+    const data = { name, url, icon: gameForm.icon.value.trim(), groupId: groupSelect.value };
 
-    const data = {
-      name: form.name.value.trim(),
-      url,
-      emoji: form.emoji.value.trim(),
-      group: form.group.value.trim() || "Other",
-      color: form.color.value || COLORS[0],
-    };
-    if (!data.name) { form.name.focus(); return; }
-
-    if (editingId) {
-      Object.assign(state.games.find((g) => g.id === editingId), data);
+    if (editingGameId) {
+      const g = state.games.find((x) => x.id === editingGameId);
+      const movedGroup = g.groupId !== data.groupId;
+      Object.assign(g, data);
+      if (movedGroup) { state.games.splice(state.games.indexOf(g), 1); state.games.push(g); }
     } else {
-      // insert after the last game in the same group so groups stay together
-      const lastIdx = state.games.map((g) => g.group).lastIndexOf(data.group);
-      const g = fresh(data);
-      if (lastIdx === -1) state.games.push(g); else state.games.splice(lastIdx + 1, 0, g);
-      toast(`Added ${data.name}`);
+      state.games.push(newGame(data));
+      toast(`Added ${name}`);
     }
-    save(); gameDialog.close(); render();
+    save(); gameSheet.close(); render();
   });
 
   $("#deleteGame").addEventListener("click", () => {
-    const g = state.games.find((x) => x.id === editingId);
+    const g = state.games.find((x) => x.id === editingGameId);
     if (!g || !confirm(`Delete ${g.name}?`)) return;
-    state.games = state.games.filter((x) => x.id !== editingId);
-    save(); gameDialog.close(); render(); toast(`Deleted ${g.name}`);
+    state.games = state.games.filter((x) => x !== g);
+    save(); gameSheet.close(); render();
   });
 
-  // ---------- settings ----------
-  const menuDialog = $("#menuDialog");
+  // ----- group sheet -----
+  const groupSheet = $("#groupSheet");
+  const groupForm = $("#groupForm");
+  let editingGroupId = null;
+  let onGroupCreated = null;
+
+  function openGroupSheet(grp, onCreated) {
+    editingGroupId = grp ? grp.id : null;
+    onGroupCreated = onCreated || null;
+    $("#groupSheetTitle").textContent = grp ? "Rename Group" : "New Group";
+    groupForm.name.value = grp ? grp.name : "";
+    $("#deleteGroupWrap").hidden = !grp;
+    const n = grp ? gamesIn(grp.id).length : 0;
+    $("#deleteGroupNote").textContent = grp && n ? `Deleting this group also deletes its ${n} game${n === 1 ? "" : "s"}.` : "";
+    openSheet(groupSheet);
+    setTimeout(() => groupForm.name.focus(), 50);
+  }
+
+  groupForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = groupForm.name.value.trim();
+    if (!name) return;
+    const clash = state.groups.find((g) => g.name.toLowerCase() === name.toLowerCase() && g.id !== editingGroupId);
+    if (clash) { toast(`There's already a group called ${clash.name}`); return; }
+    if (editingGroupId) {
+      groupById(editingGroupId).name = name;
+    } else {
+      const grp = { id: uid(), name };
+      state.groups.push(grp);
+      if (onGroupCreated) onGroupCreated(grp);
+      else if (!editing) { editing = true; }
+    }
+    save(); groupSheet.close(); render();
+  });
+
+  $("#deleteGroup").addEventListener("click", () => {
+    const grp = groupById(editingGroupId);
+    if (!grp) return;
+    const n = gamesIn(grp.id).length;
+    if (n && !confirm(`Delete ${grp.name} and its ${n} game${n === 1 ? "" : "s"}?`)) return;
+    state.groups = state.groups.filter((g) => g !== grp);
+    state.games = state.games.filter((g) => g.groupId !== grp.id);
+    save(); groupSheet.close(); render();
+  });
+
+  // ----- settings -----
+  const menuSheet = $("#menuSheet");
   $("#menuBtn").addEventListener("click", () => {
     $("#sortPlayed").checked = state.settings.sortPlayed;
     $("#hidePlayed").checked = state.settings.hidePlayed;
     $("#installHint").textContent = installHint();
-    menuDialog.showModal();
+    openSheet(menuSheet);
   });
   $("#sortPlayed").addEventListener("change", (e) => { state.settings.sortPlayed = e.target.checked; save(); render(); });
   $("#hidePlayed").addEventListener("change", (e) => { state.settings.hidePlayed = e.target.checked; save(); render(); });
+  $("#newGroupBtn").addEventListener("click", () => { menuSheet.close(); openGroupSheet(null); });
 
   function installHint() {
     const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    if (standalone) return "Installed on your home screen ✓";
+    if (standalone) return "Your games and streaks are saved on this phone. Export a backup now and then to keep them safe.";
     if (/iphone|ipad|ipod/i.test(navigator.userAgent))
-      return "Install: tap the Share button in Safari, then “Add to Home Screen”.";
+      return "To install: tap Share in Safari, then Add to Home Screen.";
     if (/android/i.test(navigator.userAgent))
-      return "Install: open your browser's ⋮ menu and tap “Add to Home screen” or “Install app”.";
-    return "Open this page on your phone and use “Add to Home Screen” to install it like an app.";
+      return "To install: open the browser menu and tap Install app.";
+    return "Open this page on your phone and add it to your home screen to use it like an app.";
   }
 
   $("#exportBtn").addEventListener("click", () => {
@@ -291,49 +457,42 @@
     e.target.value = "";
     if (!file) return;
     try {
-      const s = JSON.parse(await file.text());
-      if (!s || !Array.isArray(s.games)) throw new Error("bad file");
-      s.games = s.games.filter((g) => g && g.name && g.url).map((g) => Object.assign(fresh(g), g, { id: g.id || uid() }));
-      s.settings = Object.assign({ sortPlayed: false, hidePlayed: false }, s.settings);
-      state = s; save(); render(); menuDialog.close(); toast(`Imported ${s.games.length} games`);
+      const s = migrate(JSON.parse(await file.text()));
+      if (!s) throw new Error("bad");
+      state = s; save(); render(); menuSheet.close(); toast(`Imported ${s.games.length} games`);
     } catch { toast("That file isn't a Petal backup"); }
   });
   $("#resetBtn").addEventListener("click", () => {
-    if (!confirm("Replace your list with the default games? Your custom games and streaks will be lost.")) return;
-    state = defaultState(); save(); render(); menuDialog.close(); toast("Reset to defaults");
+    if (!confirm("Replace everything with the default games? Your own games, groups and streaks will be lost.")) return;
+    state = defaultState(); save(); render(); menuSheet.close();
   });
 
-  // ---------- suggestions ----------
-  const suggestDialog = $("#suggestDialog");
+  // ----- suggestions -----
+  const suggestSheet = $("#suggestSheet");
   function renderSuggestions() {
-    const have = new Set(state.games.map((g) => g.url.replace(/\/+$/, "")));
-    const items = [...window.DEFAULT_GAMES, ...window.SUGGESTED_GAMES]
-      .filter((s) => !have.has(s.url.replace(/\/+$/, "")));
+    const key = (u) => u.replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
+    const have = new Set(state.games.map((g) => key(g.url)));
+    const items = [...window.DEFAULT_GAMES, ...window.SUGGESTED_GAMES].filter((s) => !have.has(key(s.url)));
     const list = $("#suggestList");
-    if (!items.length) { list.replaceChildren(h("p", { class: "muted" }, "You've added them all!")); return; }
+    if (!items.length) { list.replaceChildren(h("div", { class: "cell-note" }, "You have all of them.")); return; }
     list.replaceChildren(...items.map((s) =>
-      h("button", { class: "suggest", onclick: () => {
-          const lastIdx = state.games.map((g) => g.group).lastIndexOf(s.group);
-          const g = fresh(s);
-          if (lastIdx === -1) state.games.push(g); else state.games.splice(lastIdx + 1, 0, g);
-          save(); render(); renderSuggestions(); toast(`Added ${s.name}`);
-        } },
-        h("span", { class: "badge sm", style: `--c:${s.color}` }, s.emoji),
-        h("span", { class: "meta" }, h("span", { class: "name" }, s.name), h("span", { class: "sub" }, s.group)),
-        h("span", { class: "plus" }, "＋"))));
+      h("div", { class: "row" },
+        h("div", { class: "row-main" }, iconEl(s),
+          h("span", { class: "row-text" }, h("span", { class: "row-title" }, s.name), h("span", { class: "row-detail" }, s.group))),
+        h("button", { class: "pill-btn", onclick: () => {
+            let grp = state.groups.find((g) => g.name === s.group);
+            if (!grp) { grp = { id: uid(), name: s.group }; state.groups.push(grp); }
+            state.games.push(newGame({ name: s.name, url: s.url, groupId: grp.id }));
+            save(); render(); renderSuggestions();
+          } }, "Add"))));
   }
-  $("#suggestBtn").addEventListener("click", () => { menuDialog.close(); renderSuggestions(); suggestDialog.showModal(); });
+  $("#suggestBtn").addEventListener("click", () => { menuSheet.close(); renderSuggestions(); openSheet(suggestSheet); });
 
   // ---------- wiring ----------
-  $("#addBtn").addEventListener("click", () => openGameDialog(null));
+  $("#addBtn").addEventListener("click", () => openGameSheet(null, state.groups[0]?.id));
   $("#editBtn").addEventListener("click", () => { editing = !editing; render(); });
-  document.querySelectorAll("[data-close]").forEach((b) =>
-    b.addEventListener("click", () => b.closest("dialog").close()));
-  // tap on the backdrop closes dialogs
-  document.querySelectorAll("dialog").forEach((d) =>
-    d.addEventListener("click", (e) => { if (e.target === d) d.close(); }));
 
-  // re-render when coming back to the app (handles the day rolling over)
+  // pick up a new day (or changes from another tab) when coming back to the app
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { state = load(); render(); } });
   window.addEventListener("storage", (e) => { if (e.key === STORAGE_KEY) { state = load(); render(); } });
 

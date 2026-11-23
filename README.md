@@ -12,19 +12,28 @@ It's a web app you can install on your home screen, so it works on any phone (iP
 
 - **Tap a game to open it.** It's also marked as played for today.
 - **Tick or untick** the circle to mark a game by hand.
-- **Daily reset.** Ticks clear at midnight in your time zone. The bar at the top shows today's progress.
-- **Streaks.** 🔥 shows how many days in a row you've played each game.
-- **＋ Add any game** with a name, link, emoji icon, group and colour.
-- **Edit.** Rename, re-link, regroup, recolour, reorder (↑ ↓) or delete games.
+- **Daily reset.** Ticks clear at midnight in your time zone. The top of the screen shows today's progress.
+- **Streaks.** Each game shows how many days in a row you've played it.
+- **Real game icons.** Each game shows its website's own icon, fetched automatically, and you can swap in an emoji or an image link.
+- **+ Add any game** with a name, link and group.
+- **Groups.** Create, rename, reorder and delete groups, from **Edit** or from **⋯ → New Group**.
+- **Edit mode.** Tap a game to change it, use the arrows to reorder, or add a game straight into a group.
 - **⋯ Settings:**
-  - move played games to the bottom, or hide them
-  - add popular games from a list (Worldle, Framed, Contexto and more)
+  - move played games down, or hide them
+  - add from a list of popular games
   - export or import a backup file
   - reset to the default list
 - Works offline and follows your phone's light or dark mode.
 
 Your list is saved on your phone (in the browser's local storage). There's no account and no server.
 To move your list to a new phone, use **Export backup** and then **Import backup**.
+
+### About the icons
+
+Icons come from Google's favicon service, with DuckDuckGo's as a backup, so those services see the websites in your list.
+If neither has an icon, the game gets a lettered tile.
+A website has one icon, so games from the same site share it: all the NYT games show the NYT "T" and all the LinkedIn games show the LinkedIn logo.
+To tell them apart, give a game its own emoji or image link in its **Icon** field.
 
 ## Put it online (free, with GitHub Pages)
 

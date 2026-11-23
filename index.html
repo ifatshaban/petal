@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Petal</title>
-  <meta name="description" content="All your daily games in one place.">
-  <meta name="theme-color" content="#fff7f3" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#17141a" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Your daily games in one place.">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,90 +17,114 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="top">
-    <div class="title-row">
-      <div>
-        <h1>Petal</h1>
-        <p id="today" class="muted"></p>
-      </div>
-      <div class="actions">
-        <button id="editBtn" class="pill" aria-pressed="false">Edit</button>
-        <button id="menuBtn" class="icon-btn" aria-label="Settings">⋯</button>
-      </div>
-    </div>
-    <div class="progress" aria-live="polite">
-      <div class="bar"><span id="barFill"></span></div>
-      <span id="progressText" class="muted"></span>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="19" cy="12" r="1.9" fill="currentColor"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <header class="nav">
+    <button id="editBtn" class="text-btn">Edit</button>
+    <div class="nav-right">
+      <button id="addBtn" class="round-btn" aria-label="Add game"><svg><use href="#i-plus"/></svg></button>
+      <button id="menuBtn" class="round-btn" aria-label="Settings"><svg><use href="#i-more"/></svg></button>
     </div>
   </header>
 
+  <section class="hero">
+    <h1 id="dayTitle"></h1>
+    <p id="daySub"></p>
+    <div class="bar" aria-hidden="true"><span id="barFill"></span></div>
+  </section>
+
   <main id="list"></main>
 
-  <button id="addBtn" class="fab" aria-label="Add a game">＋</button>
-
   <!-- Add / edit game -->
-  <dialog id="gameDialog">
-    <form id="gameForm" method="dialog">
-      <h2 id="gameDialogTitle">Add a game</h2>
-      <label>Name
-        <input name="name" required maxlength="40" placeholder="Wordle" autocomplete="off">
-      </label>
-      <label>Link
-        <input name="url" required type="url" inputmode="url" placeholder="https://…" autocomplete="off">
-      </label>
-      <div class="row">
-        <label class="emoji-field">Icon
-          <input name="emoji" maxlength="4" placeholder="🎮" autocomplete="off">
-        </label>
-        <label class="grow">Group
-          <input name="group" list="groupList" maxlength="30" placeholder="Other" autocomplete="off">
-          <datalist id="groupList"></datalist>
-        </label>
+  <dialog id="gameSheet" class="sheet">
+    <form id="gameForm">
+      <div class="sheet-nav">
+        <button type="button" class="text-btn" data-close>Cancel</button>
+        <h2 id="gameSheetTitle">New Game</h2>
+        <button type="submit" class="text-btn strong">Save</button>
       </div>
-      <fieldset class="colors" aria-label="Colour">
-        <legend>Colour</legend>
-        <div id="colorChoices"></div>
-      </fieldset>
-      <div class="dialog-actions">
-        <button type="button" id="deleteGame" class="danger">Delete</button>
-        <span class="grow"></span>
-        <button type="button" value="cancel" class="ghost" data-close>Cancel</button>
-        <button type="submit" class="primary">Save</button>
+      <div class="sheet-body">
+        <div class="icon-preview"><span id="iconPreview"></span></div>
+        <div class="cells">
+          <label class="field"><span>Name</span><input name="name" required maxlength="40" placeholder="Wordle" autocomplete="off"></label>
+          <label class="field"><span>Link</span><input name="url" required inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="nytimes.com/games/wordle" autocomplete="off"></label>
+          <label class="field"><span>Group</span><select name="group" id="groupSelect"></select></label>
+        </div>
+        <div class="cells">
+          <label class="field"><span>Icon</span><input name="icon" placeholder="Automatic" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off"></label>
+        </div>
+        <p class="footnote">Leave the icon blank to use the website's own icon, or enter an emoji or an image link.</p>
+        <div class="cells" id="deleteGameWrap">
+          <button type="button" id="deleteGame" class="cell-btn destructive">Delete Game</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- New / rename group -->
+  <dialog id="groupSheet" class="sheet">
+    <form id="groupForm">
+      <div class="sheet-nav">
+        <button type="button" class="text-btn" data-close>Cancel</button>
+        <h2 id="groupSheetTitle">New Group</h2>
+        <button type="submit" class="text-btn strong">Save</button>
+      </div>
+      <div class="sheet-body">
+        <div class="cells">
+          <label class="field"><span>Name</span><input name="name" required maxlength="30" placeholder="Morning games" autocomplete="off"></label>
+        </div>
+        <div class="cells" id="deleteGroupWrap">
+          <button type="button" id="deleteGroup" class="cell-btn destructive">Delete Group</button>
+        </div>
+        <p class="footnote" id="deleteGroupNote"></p>
       </div>
     </form>
   </dialog>
 
   <!-- Settings -->
-  <dialog id="menuDialog">
-    <div class="menu">
+  <dialog id="menuSheet" class="sheet">
+    <div class="sheet-nav">
+      <span></span>
       <h2>Settings</h2>
-      <label class="switch-row">
-        <span>Move played games to the bottom</span>
-        <input type="checkbox" id="sortPlayed">
-      </label>
-      <label class="switch-row">
-        <span>Hide games I've played today</span>
-        <input type="checkbox" id="hidePlayed">
-      </label>
-      <hr>
-      <button id="suggestBtn" class="menu-item">✨ Add more popular games…</button>
-      <button id="exportBtn" class="menu-item">⬇️ Export backup</button>
-      <button id="importBtn" class="menu-item">⬆️ Import backup</button>
-      <input type="file" id="importFile" accept="application/json,.json" hidden>
-      <button id="resetBtn" class="menu-item danger-text">↺ Reset to default games</button>
-      <hr>
-      <p class="muted small" id="installHint"></p>
-      <div class="dialog-actions"><span class="grow"></span><button class="primary" data-close>Done</button></div>
+      <button type="button" class="text-btn strong" data-close>Done</button>
+    </div>
+    <div class="sheet-body">
+      <div class="cells">
+        <label class="cell-row"><span>Move played games down</span><input type="checkbox" class="switch" id="sortPlayed"></label>
+        <label class="cell-row"><span>Hide played games</span><input type="checkbox" class="switch" id="hidePlayed"></label>
+      </div>
+      <div class="cells">
+        <button id="suggestBtn" class="cell-btn chev">Suggested Games<svg><use href="#i-chev"/></svg></button>
+        <button id="newGroupBtn" class="cell-btn chev">New Group<svg><use href="#i-chev"/></svg></button>
+      </div>
+      <div class="cells">
+        <button id="exportBtn" class="cell-btn">Export Backup</button>
+        <button id="importBtn" class="cell-btn">Import Backup</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+      <div class="cells">
+        <button id="resetBtn" class="cell-btn destructive">Reset to Default Games</button>
+      </div>
+      <p class="footnote" id="installHint"></p>
     </div>
   </dialog>
 
   <!-- Suggestions -->
-  <dialog id="suggestDialog">
-    <div class="menu">
-      <h2>Popular daily games</h2>
-      <p class="muted small">Tap to add. Games you already have are hidden.</p>
-      <div id="suggestList" class="suggest-list"></div>
-      <div class="dialog-actions"><span class="grow"></span><button class="primary" data-close>Done</button></div>
+  <dialog id="suggestSheet" class="sheet">
+    <div class="sheet-nav">
+      <span></span>
+      <h2>Suggested Games</h2>
+      <button type="button" class="text-btn strong" data-close>Done</button>
+    </div>
+    <div class="sheet-body">
+      <div class="cells" id="suggestList"></div>
     </div>
   </dialog>
 
