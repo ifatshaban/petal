@@ -16,7 +16,7 @@ It's a web app you can install on your home screen, so it works on any phone (iP
 - **Streaks.** Each game shows how many days in a row you've played it.
 - **Real game icons.** Each game shows its website's own icon, fetched automatically, and you can swap in an emoji or an image link.
 - **+ Add any game** with a name, link and group.
-- **Groups.** Create, rename, reorder and delete groups, from **Edit** or from **⋯ → New Group**.
+- **Groups.** Create, rename, recolour, reorder and delete groups, from **Edit** or **Menu → New group**. Each group is printed in its own ink colour, which you can change.
 - **Edit mode.** Tap a game to change it, use the arrows to reorder, or add a game straight into a group.
 - **⋯ Settings:**
   - move played games down, or hide them

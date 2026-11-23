@@ -15,12 +15,22 @@
   // { version: 2, groups: [{id, name}], games: [{id, name, url, groupId, icon, lastPlayed, streak, undo}], settings }
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
+  // Spot-ink colours a group can be printed in (defined in styles.css as .c-<name>).
+  const INKS = ["red", "blue", "mustard", "green", "pink", "teal", "violet", "orange"];
+  const INK_NAMES = { red: "Red", blue: "Blue", mustard: "Mustard", green: "Green", pink: "Pink", teal: "Teal", violet: "Violet", orange: "Orange" };
+  // the first ink not already used, or the least used one
+  const nextInk = (groups) => {
+    const count = (c) => groups.filter((g) => g.color === c).length;
+    return INKS.reduce((best, c) => (count(c) < count(best) ? c : best), INKS[0]);
+  };
+  const makeGroup = (name, groups) => ({ id: uid(), name, color: nextInk(groups) });
+
   function fromCatalogue(list) {
     const groups = [];
     const byName = new Map();
     const games = list.map((g) => {
       let grp = byName.get(g.group);
-      if (!grp) { grp = { id: uid(), name: g.group }; groups.push(grp); byName.set(g.group, grp); }
+      if (!grp) { grp = makeGroup(g.group, groups); groups.push(grp); byName.set(g.group, grp); }
       return newGame({ name: g.name, url: g.url, groupId: grp.id });
     });
     return { groups, games };
@@ -37,8 +47,9 @@
   function migrate(s) {
     if (!s || !Array.isArray(s.games)) return null;
     const groups = Array.isArray(s.groups)
-      ? s.groups.filter((g) => g && g.id && g.name).map((g) => ({ id: String(g.id), name: String(g.name) }))
+      ? s.groups.filter((g) => g && g.id && g.name).map((g) => ({ id: String(g.id), name: String(g.name), color: g.color }))
       : [];
+    groups.forEach((g, i) => { if (!INKS.includes(g.color)) g.color = nextInk(groups.slice(0, i)); });
     const byName = new Map(groups.map((g) => [g.name, g]));
     const games = [];
     for (const g of s.games) {
@@ -47,7 +58,7 @@
       if (!groups.some((x) => x.id === groupId)) {
         const name = g.group || "Other";
         let grp = byName.get(name);
-        if (!grp) { grp = { id: uid(), name }; groups.push(grp); byName.set(name, grp); }
+        if (!grp) { grp = makeGroup(name, groups); groups.push(grp); byName.set(name, grp); }
         groupId = grp.id;
       }
       games.push({
@@ -199,7 +210,8 @@
         done === total ? `all ${total} solved.` : `${done} of ${total} solved`);
     }
     const ordered = state.groups.flatMap((grp) => gamesIn(grp.id));
-    $("#squares").replaceChildren(...ordered.map((g) => h("i", { class: playedToday(g) ? "on" : null })));
+    $("#squares").replaceChildren(...ordered.map((g) =>
+      h("i", { class: `c-${groupById(g.groupId).color}${playedToday(g) ? " on" : ""}` })));
 
     document.body.classList.toggle("editing", editing);
     $("#editBtn").textContent = editing ? "Done" : "Edit";
@@ -228,7 +240,7 @@
       const head = editing
         ? h("div", { class: "group-head" },
             h("button", { class: "group-name editable", onclick: () => openGroupSheet(grp) }, grp.name,
-              h("span", { class: "rename" }, "rename")),
+              h("span", { class: "rename" }, "edit")),
             h("div", { class: "move" },
               moveBtn("i-up", `Move ${grp.name} up`, gi === 0, () => moveGroup(gi, -1)),
               moveBtn("i-down", `Move ${grp.name} down`, gi === state.groups.length - 1, () => moveGroup(gi, 1))))
@@ -244,7 +256,7 @@
       } else if (!shown.length) {
         rows.append(h("p", { class: "row-note" }, h("em", {}, "All solved.")));
       }
-      list.append(h("section", { class: "group" }, head, rows));
+      list.append(h("section", { class: `group c-${grp.color}` }, head, rows));
     });
 
     if (editing) {
@@ -320,7 +332,7 @@
       h("option", { value: "__new" }, "New group…"));
     if (!state.groups.length) {
       // a game needs a group; make "Other" on the fly
-      const grp = { id: uid(), name: "Other" };
+      const grp = makeGroup("Other", state.groups);
       state.groups.push(grp); save();
       return fillGroupSelect(grp.id);
     }
@@ -396,8 +408,12 @@
   function openGroupSheet(grp, onCreated) {
     editingGroupId = grp ? grp.id : null;
     onGroupCreated = onCreated || null;
-    $("#groupSheetTitle").textContent = grp ? "Rename group" : "New group";
+    $("#groupSheetTitle").textContent = grp ? "Edit group" : "New group";
     groupForm.name.value = grp ? grp.name : "";
+    const chosen = grp ? grp.color : nextInk(state.groups);
+    $("#inkChoices").replaceChildren(...INKS.map((c) =>
+      h("label", { class: `ink-chip c-${c}`, title: INK_NAMES[c] },
+        h("input", { type: "radio", name: "color", value: c, checked: c === chosen, "aria-label": INK_NAMES[c] }))));
     $("#deleteGroupWrap").hidden = !grp;
     const n = grp ? gamesIn(grp.id).length : 0;
     $("#deleteGroupNote").textContent = grp && n ? `Deleting this group also deletes its ${n} game${n === 1 ? "" : "s"}.` : "";
@@ -411,10 +427,11 @@
     if (!name) return;
     const clash = state.groups.find((g) => g.name.toLowerCase() === name.toLowerCase() && g.id !== editingGroupId);
     if (clash) { toast(`There's already a group called ${clash.name}`); return; }
+    const color = INKS.includes(groupForm.color.value) ? groupForm.color.value : nextInk(state.groups);
     if (editingGroupId) {
-      groupById(editingGroupId).name = name;
+      Object.assign(groupById(editingGroupId), { name, color });
     } else {
-      const grp = { id: uid(), name };
+      const grp = { id: uid(), name, color };
       state.groups.push(grp);
       if (onGroupCreated) onGroupCreated(grp);
       else if (!editing) { editing = true; }
@@ -490,7 +507,7 @@
           h("span", { class: "row-text" }, h("span", { class: "row-title" }, s.name), h("span", { class: "row-detail" }, s.group))),
         h("button", { class: "tool add-btn", onclick: () => {
             let grp = state.groups.find((g) => g.name === s.group);
-            if (!grp) { grp = { id: uid(), name: s.group }; state.groups.push(grp); }
+            if (!grp) { grp = makeGroup(s.group, state.groups); state.groups.push(grp); }
             state.games.push(newGame({ name: s.name, url: s.url, groupId: grp.id }));
             save(); render(); renderSuggestions();
           } }, "Add"))));
