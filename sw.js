@@ -1,5 +1,5 @@
 // Bump this when you change any app file so phones pick up the new version.
-const CACHE = "petal-v6";
+const CACHE = "petal-v7";
 const ICON_CACHE = "petal-icons-v1";
 const ICON_HOSTS = ["www.google.com", "icons.duckduckgo.com"];
 const ASSETS = [

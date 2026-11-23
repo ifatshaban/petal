@@ -87,6 +87,10 @@
     return defaultState();
   }
 
+  // If anything breaks, say so on screen instead of failing silently.
+  window.addEventListener("error", (e) => toast(`Something went wrong: ${e.message}`));
+  window.addEventListener("unhandledrejection", (e) => toast(`Something went wrong: ${e.reason && e.reason.message || e.reason}`));
+
   let state = load();
   let editing = false;
 
@@ -374,6 +378,12 @@
   // ----- game sheet -----
   const gameSheet = $("#gameSheet");
   const gameForm = $("#gameForm");
+  // Look fields up directly: form.name means the form's own name attribute in some browsers.
+  const gf = {
+    name: gameForm.querySelector('[name="name"]'),
+    url: gameForm.querySelector('[name="url"]'),
+    icon: gameForm.querySelector('[name="icon"]'),
+  };
   const groupSelect = $("#groupSelect");
   let editingGameId = null;
   let lastGroupChoice = null;
@@ -393,7 +403,7 @@
   }
 
   function updatePreview() {
-    const fake = { name: gameForm.name.value || "?", url: normaliseUrl(gameForm.url.value), icon: gameForm.icon.value };
+    const fake = { name: gf.name.value || "?", url: normaliseUrl(gf.url.value), icon: gf.icon.value };
     $("#iconPreview").replaceChildren(iconEl(fake));
   }
   let previewTimer;
@@ -406,13 +416,13 @@
     editingGameId = g ? g.id : null;
     $("#gameSheetTitle").textContent = g ? "Edit game" : "New game";
     $("#deleteGameWrap").hidden = !g;
-    gameForm.name.value = g ? g.name : "";
-    gameForm.url.value = g ? g.url : "";
-    gameForm.icon.value = g ? g.icon : "";
+    gf.name.value = g ? g.name : "";
+    gf.url.value = g ? g.url : "";
+    gf.icon.value = g ? g.icon : "";
     fillGroupSelect(g ? g.groupId : groupId);
     updatePreview();
     openSheet(gameSheet);
-    if (!g) setTimeout(() => gameForm.name.focus(), 50);
+    if (!g) setTimeout(() => gf.name.focus(), 50);
   }
 
   groupSelect.addEventListener("change", () => {
@@ -421,16 +431,16 @@
     openGroupSheet(null, (grp) => { fillGroupSelect(grp.id); });
   });
 
-  gameForm.url.addEventListener("blur", () => { gameForm.url.value = normaliseUrl(gameForm.url.value); });
+  gf.url.addEventListener("blur", () => { gf.url.value = normaliseUrl(gf.url.value); });
 
   gameForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    const url = normaliseUrl(gameForm.url.value);
+    const url = normaliseUrl(gf.url.value);
     try { if (!/^https?:$/.test(new URL(url).protocol)) throw 0; }
-    catch { toast("Enter a valid web link"); gameForm.url.focus(); return; }
-    const name = gameForm.name.value.trim();
-    if (!name) { gameForm.name.focus(); return; }
-    const data = { name, url, icon: gameForm.icon.value.trim(), groupId: groupSelect.value };
+    catch { toast("Enter a valid web link"); gf.url.focus(); return; }
+    const name = gf.name.value.trim();
+    if (!name) { gf.name.focus(); return; }
+    const data = { name, url, icon: gf.icon.value.trim(), groupId: groupSelect.value };
 
     if (editingGameId) {
       const g = state.games.find((x) => x.id === editingGameId);
@@ -454,6 +464,8 @@
   // ----- group sheet -----
   const groupSheet = $("#groupSheet");
   const groupForm = $("#groupForm");
+  const groupNameInput = groupForm.querySelector('[name="name"]');
+  const pickedInk = () => groupForm.querySelector('input[name="color"]:checked')?.value;
   let editingGroupId = null;
   let onGroupCreated = null;
 
@@ -461,7 +473,7 @@
     editingGroupId = grp ? grp.id : null;
     onGroupCreated = onCreated || null;
     $("#groupSheetTitle").textContent = grp ? "Edit group" : "New group";
-    groupForm.name.value = grp ? grp.name : "";
+    groupNameInput.value = grp ? grp.name : "";
     const chosen = grp ? grp.color : nextInk(state.groups);
     $("#inkChoices").replaceChildren(...INKS.map((c) =>
       h("label", { class: `ink-chip c-${c}`, title: INK_NAMES[c] },
@@ -470,16 +482,16 @@
     const n = grp ? gamesIn(grp.id).length : 0;
     $("#deleteGroupNote").textContent = grp && n ? `Deleting this group also deletes its ${n} game${n === 1 ? "" : "s"}.` : "";
     openSheet(groupSheet);
-    setTimeout(() => groupForm.name.focus(), 50);
+    setTimeout(() => groupNameInput.focus(), 50);
   }
 
   groupForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    const name = groupForm.name.value.trim();
+    const name = groupNameInput.value.trim();
     if (!name) return;
     const clash = state.groups.find((g) => g.name.toLowerCase() === name.toLowerCase() && g.id !== editingGroupId);
     if (clash) { toast(`There's already a group called ${clash.name}`); return; }
-    const color = INKS.includes(groupForm.color.value) ? groupForm.color.value : nextInk(state.groups);
+    const color = INKS.includes(pickedInk()) ? pickedInk() : nextInk(state.groups);
     if (editingGroupId) {
       Object.assign(groupById(editingGroupId), { name, color });
     } else {
