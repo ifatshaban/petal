@@ -37,8 +37,14 @@
     <p class="tagline">The daily round of puzzles</p>
   </header>
 
-  <section class="round" aria-live="polite">
-    <p id="roundText"></p>
+  <section class="round">
+    <div class="round-top">
+      <p id="roundText" aria-live="polite"></p>
+      <button id="streakBtn" class="streak">
+        <span id="streakNum">0</span>
+        <span class="streak-label">day<br>streak</span>
+      </button>
+    </div>
     <div id="squares" class="squares" aria-hidden="true"></div>
   </section>
 
@@ -104,6 +110,7 @@
         <label class="cell-row"><span>Hide solved games</span><input type="checkbox" class="switch" id="hidePlayed"></label>
       </div>
       <div class="cells">
+        <button id="calendarBtn" class="cell-btn chev">Streak calendar<span aria-hidden="true">→</span></button>
         <button id="suggestBtn" class="cell-btn chev">Suggested games<span aria-hidden="true">→</span></button>
         <button id="newGroupBtn" class="cell-btn chev">New group<span aria-hidden="true">→</span></button>
       </div>
@@ -128,6 +135,32 @@
     </div>
     <div class="sheet-body">
       <div class="cells" id="suggestList"></div>
+    </div>
+  </dialog>
+
+  <!-- Streak calendar -->
+  <dialog id="calSheet" class="sheet">
+    <div class="sheet-nav">
+      <span></span>
+      <h2>Streak</h2>
+      <button type="button" class="ink-btn" data-close>Done</button>
+    </div>
+    <div class="sheet-body">
+      <div class="stats">
+        <div><b id="statCurrent">0</b><span>Current streak</span></div>
+        <div><b id="statBest">0</b><span>Best streak</span></div>
+        <div><b id="statMonth">0</b><span id="statMonthLabel">Perfect days</span></div>
+      </div>
+      <div class="cal-head">
+        <button type="button" id="calPrev" class="tool" aria-label="Previous month">←</button>
+        <h3 id="calTitle"></h3>
+        <button type="button" id="calNext" class="tool" aria-label="Next month">→</button>
+      </div>
+      <div class="cal-dow" id="calDow" aria-hidden="true"></div>
+      <div class="cal-grid" id="calGrid"></div>
+      <p class="cal-key"><span class="key perfect"></span> every game solved <span class="key partial"></span> some solved</p>
+      <div id="calDetail" class="cal-detail" aria-live="polite"></div>
+      <p class="footnote">A day counts towards your streak when every game on your list is ticked. Your streak grows by one for each perfect day in a row.</p>
     </div>
   </dialog>
 

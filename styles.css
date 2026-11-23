@@ -117,7 +117,19 @@ em { font-style: italic; }
 @media (prefers-color-scheme: dark) { .c-mustard { --on-g: var(--on-ink); } }
 
 .round { margin-top: 14px; }
+.round-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 #roundText { margin: 0; font-size: 18px; font-variant-numeric: oldstyle-nums; }
+
+/* perfect-day streak counter; tap for the calendar */
+.streak {
+  flex: none; display: flex; align-items: center; gap: 7px;
+  border: 1.5px solid var(--ink); padding: 4px 9px 4px 10px; color: var(--ink);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.streak #streakNum { font: 700 28px/1 var(--serif); font-variant-numeric: lining-nums; min-width: .6em; text-align: center; }
+.streak-label { font: 500 9.5px/1.15 var(--mono); text-transform: uppercase; letter-spacing: .12em; text-align: left; }
+.streak.lit { background: var(--ink-red); border-color: var(--ink-red); color: var(--on-ink); }
+.streak:active { opacity: .7; }
 #roundText:empty { display: none; }
 .squares { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 9px; }
 .squares i { width: 13px; height: 13px; border: 1.5px solid var(--g, var(--ink)); transition: background .25s; }
@@ -293,6 +305,50 @@ dialog::backdrop { background: rgba(20, 16, 10, .45); }
   transition: opacity .2s, transform .2s; z-index: 20; max-width: calc(100vw - 36px);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- streak calendar ---------- */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.stats > div { padding: 10px 8px 9px 0; display: flex; flex-direction: column; gap: 3px; }
+.stats > div + div { border-left: 1px dotted var(--dots); padding-left: 10px; }
+.stats b { font: 700 32px/1 var(--serif); font-variant-numeric: lining-nums; }
+.stats span { font: 400 10px/1.25 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--ink-2); }
+
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 8px; }
+.cal-head h3 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.015em; }
+.cal-head .tool { font-size: 18px; padding: 6px 10px; }
+.cal-head .tool:disabled { opacity: .25; cursor: default; }
+.cal-dow, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); column-gap: 5px; }
+.cal-dow span { text-align: center; font: 400 11px var(--mono); color: var(--ink-2); padding-bottom: 6px; text-transform: uppercase; }
+.cal-grid { row-gap: 5px; }
+
+.day {
+  position: relative; aspect-ratio: 1; display: grid; place-items: center;
+  border: 1px solid var(--dots); background: var(--card);
+  font: 500 13px var(--mono); color: var(--ink);
+}
+.day > span { position: relative; }
+.day .fill { position: absolute; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--ink-red) 30%, transparent); }
+.day.blank { border: 0; background: none; }
+.day.future { opacity: .35; cursor: default; }
+.day.today { box-shadow: inset 0 0 0 2px var(--ink); }
+.day.perfect { background: var(--ink-red); border-color: var(--ink-red); color: var(--on-ink); }
+.day.perfect.today { box-shadow: inset 0 0 0 2px var(--on-ink); }
+/* chain consecutive perfect days together */
+.day.join-r::after {
+  content: ""; position: absolute; right: -6px; top: 38%; bottom: 38%; width: 6px; background: var(--ink-red);
+}
+.day.selected { outline: 2px solid var(--ink); outline-offset: 2px; z-index: 1; }
+
+.cal-key { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 12px 0 0; font: 400 11px var(--mono); color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; }
+.cal-key .key { width: 12px; height: 12px; border: 1px solid var(--ink-red); }
+.cal-key .key.perfect { background: var(--ink-red); }
+.cal-key .key.partial { background: linear-gradient(to top, color-mix(in srgb, var(--ink-red) 30%, transparent) 50%, transparent 50%); margin-left: 10px; }
+
+.cal-detail { margin-top: 16px; border-top: 1px solid var(--ink); padding-top: 10px; }
+.cal-detail:empty { display: none; }
+.cal-detail p { margin: 0 0 3px; }
+.cal-detail-title { font-size: 19px; font-weight: 700; }
+.cal-detail-games { font-style: italic; color: var(--ink-2); font-size: 16px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, dialog.sheet[open], .check[aria-pressed="true"] { transition: none !important; animation: none !important; }

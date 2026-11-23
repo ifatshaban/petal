@@ -13,7 +13,9 @@ It's a web app you can install on your home screen, so it works on any phone (iP
 - **Tap a game to open it.** It's also marked as played for today.
 - **Tick or untick** the circle to mark a game by hand. Solved games get crossed off in red.
 - **Daily reset.** Ticks clear at midnight in your time zone. Below the masthead, a row of squares fills in as you go.
-- **Streaks.** Each game shows how many days in a row you've played it.
+- **Perfect-day streak.** Solve every game on your list in a day and your streak grows by one. The counter sits next to today's progress.
+- **Streak calendar.** Tap the counter, or go to **Menu → Streak calendar**, to see each month: full days in red, partly solved days shaded by how much you did. It also shows your current and best streaks, and you can tap a day to see what you played.
+- **Per-game streaks.** Each game also shows how many days in a row you've played it.
 - **Real game icons.** Each game shows its website's own icon, fetched automatically, and you can swap in an emoji or an image link.
 - **+ Add any game** with a name, link and group.
 - **Groups.** Create, rename, recolour, reorder and delete groups, from **Edit** or **Menu → New group**. Each group is printed in its own ink colour, which you can change.

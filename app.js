@@ -40,7 +40,7 @@
                             lastPlayed: null, streak: 0, undo: null });
 
   function defaultState() {
-    return { version: 2, ...fromCatalogue(window.DEFAULT_GAMES), settings: { ...DEFAULT_SETTINGS } };
+    return { version: 2, ...fromCatalogue(window.DEFAULT_GAMES), history: {}, settings: { ...DEFAULT_SETTINGS } };
   }
 
   // Accepts current and older saved data (and backup files) and normalises it.
@@ -67,7 +67,14 @@
         lastPlayed: g.lastPlayed || null, streak: Number(g.streak) || 0, undo: g.undo || null,
       });
     }
-    return { version: 2, groups, games, settings: { ...DEFAULT_SETTINGS, ...s.settings } };
+    const history = {};
+    if (s.history && typeof s.history === "object") {
+      for (const [day, e] of Object.entries(s.history)) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(day) && e && Array.isArray(e.ids) && Number(e.total) >= 0)
+          history[day] = { ids: e.ids.map(String), total: Number(e.total) };
+      }
+    }
+    return { version: 2, groups, games, history, settings: { ...DEFAULT_SETTINGS, ...s.settings } };
   }
 
   function load() {
@@ -81,7 +88,17 @@
   let state = load();
   let editing = false;
 
+  // Keeps a record of each day: which games were solved and how many there were.
+  // Past days are frozen as they were left; today is rewritten on every change.
+  function recordToday() {
+    const today = dayKey();
+    const ids = state.games.filter(playedToday).map((g) => g.id);
+    if (!ids.length && !state.history[today]) return;
+    state.history[today] = { ids, total: state.games.length };
+  }
+
   function save() {
+    recordToday();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
     catch (e) { toast("Couldn't save. Storage may be full."); }
   }
@@ -92,6 +109,7 @@
   const liveStreak = (g) => (g.lastPlayed === dayKey() || g.lastPlayed === yesterdayKey()) ? g.streak : 0;
 
   function setPlayed(g, played) {
+    const wasPerfect = isPerfect(dayKey());
     const today = dayKey();
     if (played && g.lastPlayed !== today) {
       g.undo = { lastPlayed: g.lastPlayed, streak: g.streak };
@@ -103,6 +121,34 @@
       g.undo = null;
     }
     save();
+    if (!wasPerfect && isPerfect(today)) {
+      const n = currentStreak();
+      toast(n > 1 ? `All solved · ${n}-day streak` : "All solved today");
+    }
+  }
+
+  // ---------- perfect-day streak ----------
+  const keyToDate = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+  const shiftDay = (k, n) => { const d = keyToDate(k); d.setDate(d.getDate() + n); return dayKey(d); };
+  function isPerfect(day) {
+    const e = state.history[day];
+    return !!e && e.total > 0 && e.ids.length >= e.total;
+  }
+  function currentStreak() {
+    let day = isPerfect(dayKey()) ? dayKey() : yesterdayKey();
+    let n = 0;
+    while (isPerfect(day)) { n++; day = shiftDay(day, -1); }
+    return n;
+  }
+  function bestStreak() {
+    let best = 0, run = 0, prev = null;
+    for (const day of Object.keys(state.history).sort()) {
+      if (!isPerfect(day)) { run = 0; prev = day; continue; }
+      run = prev && shiftDay(prev, 1) === day && isPerfect(prev) ? run + 1 : 1;
+      best = Math.max(best, run);
+      prev = day;
+    }
+    return best;
   }
 
   // ---------- DOM helpers ----------
@@ -209,6 +255,10 @@
       round.append(h("em", {}, "Today’s round"), " — ",
         done === total ? `all ${total} solved.` : `${done} of ${total} solved`);
     }
+    const streak = currentStreak();
+    $("#streakNum").textContent = streak;
+    $("#streakBtn").classList.toggle("lit", isPerfect(dayKey()));
+    $("#streakBtn").setAttribute("aria-label", `${streak}-day streak. Open the calendar.`);
     const ordered = state.groups.flatMap((grp) => gamesIn(grp.id));
     $("#squares").replaceChildren(...ordered.map((g) =>
       h("i", { class: `c-${groupById(g.groupId).color}${playedToday(g) ? " on" : ""}` })));
@@ -513,6 +563,94 @@
           } }, "Add"))));
   }
   $("#suggestBtn").addEventListener("click", () => { menuSheet.close(); renderSuggestions(); openSheet(suggestSheet); });
+
+  // ----- calendar -----
+  const calSheet = $("#calSheet");
+  let calMonth = null; // Date set to the 1st of the month shown
+  let calSelected = null;
+
+  function firstDayOfWeek() {
+    try {
+      const loc = new Intl.Locale(navigator.language || "en-US");
+      const info = loc.getWeekInfo ? loc.getWeekInfo() : loc.weekInfo;
+      if (info && info.firstDay) return info.firstDay % 7; // 0 = Sunday
+    } catch (e) { /* fall through */ }
+    return 0;
+  }
+
+  function renderCalendar() {
+    const today = dayKey();
+    const y = calMonth.getFullYear(), m = calMonth.getMonth();
+    const monthName = calMonth.toLocaleDateString(undefined, { month: "long" });
+    $("#calTitle").textContent = calMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+    $("#statCurrent").textContent = currentStreak();
+    $("#statBest").textContent = bestStreak();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    let perfectInMonth = 0;
+    for (let d = 1; d <= daysInMonth; d++) if (isPerfect(dayKey(new Date(y, m, d)))) perfectInMonth++;
+    $("#statMonth").textContent = perfectInMonth;
+    $("#statMonthLabel").textContent = `Perfect days in ${monthName}`;
+
+    const first = firstDayOfWeek();
+    $("#calDow").replaceChildren(...Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(2024, 0, 7 + ((first + i) % 7)); // 7 Jan 2024 was a Sunday
+      return h("span", {}, d.toLocaleDateString(undefined, { weekday: "narrow" }));
+    }));
+
+    const cells = [];
+    const lead = (new Date(y, m, 1).getDay() - first + 7) % 7;
+    for (let i = 0; i < lead; i++) cells.push(h("span", { class: "day blank" }));
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = dayKey(new Date(y, m, d));
+      const e = state.history[key];
+      const future = key > today;
+      const perfect = isPerfect(key);
+      const share = e && e.total ? Math.min(1, e.ids.length / e.total) : 0;
+      // link perfect days that sit next to each other in the same week row
+      const col = (lead + d - 1) % 7;
+      const joinLeft = perfect && col > 0 && d > 1 && isPerfect(shiftDay(key, -1));
+      const joinRight = perfect && col < 6 && d < daysInMonth && isPerfect(shiftDay(key, 1));
+      const cls = ["day", perfect && "perfect", !perfect && share > 0 && "partial", future && "future",
+        key === today && "today", key === calSelected && "selected", joinLeft && "join-l", joinRight && "join-r"]
+        .filter(Boolean).join(" ");
+      cells.push(h("button", {
+        class: cls, disabled: future,
+        "aria-label": `${keyToDate(key).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}: ${
+          perfect ? "every game solved" : e ? `${e.ids.length} of ${e.total} solved` : "nothing solved"}`,
+        onclick: () => { calSelected = key; renderCalendar(); },
+      },
+        !perfect && share > 0 ? h("i", { class: "fill", style: `height:${Math.round(share * 100)}%` }) : null,
+        h("span", {}, String(d))));
+    }
+    $("#calGrid").replaceChildren(...cells);
+
+    const next = new Date(y, m + 1, 1);
+    $("#calNext").disabled = dayKey(next) > today;
+
+    const detail = $("#calDetail");
+    if (!calSelected) { detail.replaceChildren(); return; }
+    const e = state.history[calSelected];
+    const title = keyToDate(calSelected).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    const names = e ? e.ids.map((id) => state.games.find((g) => g.id === id)?.name).filter(Boolean) : [];
+    detail.replaceChildren(
+      h("p", { class: "cal-detail-title" }, title),
+      h("p", {}, isPerfect(calSelected) ? `Every game solved (${e.total} of ${e.total}).`
+        : e && e.ids.length ? `${e.ids.length} of ${e.total} solved.` : "Nothing solved."),
+      names.length ? h("p", { class: "cal-detail-games" }, names.join(", ")) : null);
+  }
+
+  function openCalendar() {
+    const now = new Date();
+    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    calSelected = dayKey();
+    renderCalendar();
+    openSheet(calSheet);
+  }
+  $("#streakBtn").addEventListener("click", openCalendar);
+  $("#calendarBtn").addEventListener("click", () => { menuSheet.close(); openCalendar(); });
+  $("#calPrev").addEventListener("click", () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCalendar(); });
+  $("#calNext").addEventListener("click", () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCalendar(); });
 
   // ---------- wiring ----------
   $("#addBtn").addEventListener("click", () => openGameSheet(null, state.groups[0]?.id));
